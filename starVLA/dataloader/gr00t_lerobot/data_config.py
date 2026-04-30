@@ -1170,7 +1170,8 @@ ROBOT_TYPE_CONFIG_MAP = {
     "robotwin": AgilexDataConfig(),
     "robotwin50": AgilexData50Config(),
     "fourier_gr1_arms_waist": FourierGr1ArmsWaistDataConfig(),
-    
+    "vla_arena_franka": VLAArenaFrankaDataConfig(),
+
     "custom_robot_config": SingleFrankaRobotiqDeltaEefDataConfig(),
     "teleavatar": TeleAvatarDataConfig(),
 }

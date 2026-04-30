@@ -134,8 +134,6 @@ class QwenPI_v3DefaultConfig:
         }
     )
 
-    obs_image_size: Optional[list] = None
-
 
 @FRAMEWORK_REGISTRY.register("QwenPI_v3")
 class Qwen_PI_v3(baseframework):
@@ -344,7 +342,7 @@ class Qwen_PI_v3(baseframework):
         state = None
 
         # Optionally resize images to the resolution used during training.
-        train_obs_image_size = getattr(self.config.datasets.vla_data, "image_size", None)
+        train_obs_image_size = getattr(self.config.datasets.vla_data, "obs_image_size", None)
         if train_obs_image_size:
             batch_images = resize_images(batch_images, target_size=train_obs_image_size)
 
@@ -408,7 +406,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--config_yaml",
         type=str,
-        default="./starVLA/config/training/starvla_cotrain_oxe.yaml",
+        default="examples/SimplerEnv/train_files/starvla_cotrain_oxe.yaml",
         help="Path to YAML config",
     )
     args, clipargs = parser.parse_known_args()
