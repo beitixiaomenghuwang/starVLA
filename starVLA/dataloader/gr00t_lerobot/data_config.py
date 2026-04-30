@@ -1040,8 +1040,20 @@ class TeleAvatarDataConfig(BaseDataConfig):
     language_keys = ["annotation.human.action.task_description"]
 
     observation_indices = [0]
-    action_indices = list(range(16))    # predict 16 future steps
+    default_action_horizon = 16         # fallback when no training config is provided
+    action_indices = list(range(default_action_horizon))
     state_indices = [0]                 # current end-effector state
+
+    def _resolve_action_horizon(self, data_cfg=None) -> int:
+        action_horizon = None
+        if data_cfg is not None:
+            action_horizon = data_cfg.get("action_horizon", None)
+        if action_horizon is None:
+            action_horizon = self.default_action_horizon
+        action_horizon = int(action_horizon)
+        if action_horizon <= 0:
+            raise ValueError(f"TeleAvatar action_horizon must be positive, got {action_horizon}")
+        return action_horizon
 
     @staticmethod
     def get_lerobot_modality_meta() -> dict:
@@ -1100,7 +1112,8 @@ class TeleAvatarDataConfig(BaseDataConfig):
             },
         }
 
-    def modality_config(self) -> dict:
+    def modality_config(self, data_cfg=None) -> dict:
+        action_indices = list(range(self._resolve_action_horizon(data_cfg)))
         video_modality = ModalityConfig(
             delta_indices=self.observation_indices,
             modality_keys=self.video_keys,
@@ -1110,7 +1123,7 @@ class TeleAvatarDataConfig(BaseDataConfig):
             modality_keys=self.state_keys,
         )
         action_modality = ModalityConfig(
-            delta_indices=self.action_indices,
+            delta_indices=action_indices,
             modality_keys=self.action_keys,
         )
         language_modality = ModalityConfig(
@@ -1170,7 +1183,6 @@ ROBOT_TYPE_CONFIG_MAP = {
     "robotwin": AgilexDataConfig(),
     "robotwin50": AgilexData50Config(),
     "fourier_gr1_arms_waist": FourierGr1ArmsWaistDataConfig(),
-    "vla_arena_franka": VLAArenaFrankaDataConfig(),
 
     "custom_robot_config": SingleFrankaRobotiqDeltaEefDataConfig(),
     "teleavatar": TeleAvatarDataConfig(),

@@ -35,6 +35,7 @@ def make_LeRobotSingleDataset(
     robot_type: str,
     delete_pause_frame: bool = False,
     data_cfg: dict | None = None,
+    action_horizon: int | None = None,
 ) -> LeRobotSingleDataset:
     """
     Make a LeRobotSingleDataset object.
@@ -47,7 +48,15 @@ def make_LeRobotSingleDataset(
     """
     
     data_config = ROBOT_TYPE_CONFIG_MAP[robot_type]
-    modality_config = data_config.modality_config()
+    if action_horizon is not None and data_cfg is not None:
+        try:
+            OmegaConf.update(data_cfg, "action_horizon", int(action_horizon), force_add=True)
+        except Exception:
+            data_cfg["action_horizon"] = int(action_horizon)
+    try:
+        modality_config = data_config.modality_config(data_cfg=data_cfg)
+    except TypeError:
+        modality_config = data_config.modality_config()
     transforms = data_config.transform()
     dataset_path = data_root_dir / data_name
     _ensure_lerobot_modality_meta(dataset_path, data_config)
@@ -80,6 +89,7 @@ def get_vla_dataset(
     balance_dataset_weights: bool = False,
     balance_trajectory_weights: bool = False,
     seed: int = 42,
+    action_horizon: int | None = None,
     **kwargs: dict,
 ) -> LeRobotMixtureDataset:
     """
@@ -101,7 +111,17 @@ def get_vla_dataset(
 
     dataset_mixture = []
     for d_name, d_weight, robot_type in filtered_mixture_spec:
-        dataset_mixture.append((make_LeRobotSingleDataset(Path(data_root_dir), d_name, robot_type, delete_pause_frame=delete_pause_frame, data_cfg=data_cfg), d_weight))
+        dataset_mixture.append((
+            make_LeRobotSingleDataset(
+                Path(data_root_dir),
+                d_name,
+                robot_type,
+                delete_pause_frame=delete_pause_frame,
+                data_cfg=data_cfg,
+                action_horizon=action_horizon,
+            ),
+            d_weight,
+        ))
 
     return LeRobotMixtureDataset(
         dataset_mixture,

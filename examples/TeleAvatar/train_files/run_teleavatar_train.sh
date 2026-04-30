@@ -8,7 +8,7 @@
 MODEL_PATH=/DATA/disk0/xueyang/model/Qwen3-VL-4B-Instruct
 
 # Dataset directory. Its basename must match the teleavatar_pick_marker mixture.
-DATA_ROOT_DIR=/DATA/disk0/xueyang/Data/pick_marker_put_into_cup_20251113
+DATA_ROOT_DIR=/DATA/disk0/xueyang/Data/pick_marker_put_into_cup_20251113_with_progress
 
 RUN_ROOT_DIR=/DATA/disk0/xueyang/model/starvla_teleavatar
 RUN_ID=teleavatar_pick_marker_$(date +%m%d_%H%M)

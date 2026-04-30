@@ -365,6 +365,6 @@ DATASET_NAMED_MIXTURES = {
     ],
     # TeleAvatar dual-arm real-robot dataset
     "teleavatar_pick_marker": [
-        ("pick_marker_put_into_cup_20251113", 1.0, "teleavatar"),
+        ("pick_marker_put_into_cup_20251113_with_progress", 1.0, "teleavatar"),
     ],
 }

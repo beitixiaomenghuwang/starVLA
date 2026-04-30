@@ -17,10 +17,9 @@ framework:
     vl_hidden_dim: 2560
   action_model:
     action_model_type: MLP
-    action_hidden_dim: 2560
     action_dim: 20
     state_dim: 18
-    action_horizon: 16
+    action_horizon: 30
     future_action_window_size: 15
     past_action_window_size: 0
   obs_image_size: [224, 224]
@@ -42,7 +41,6 @@ datasets:
     video_backend: torchvision_av
 
 trainer:
-  epochs: 200
   max_train_steps: 30000
   num_warmup_steps: 1000
   save_interval: 5000

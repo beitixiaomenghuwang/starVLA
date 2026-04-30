@@ -39,7 +39,8 @@ def build_dataloader(cfg, dataset_py="lerobot_datasets_oxe"): # TODO now here on
         from starVLA.dataloader.lerobot_datasets import get_vla_dataset, collate_fn
         vla_dataset_cfg = cfg.datasets.vla_data
 
-        vla_dataset = get_vla_dataset(data_cfg=vla_dataset_cfg)
+        action_horizon = cfg.framework.action_model.get("action_horizon", None)
+        vla_dataset = get_vla_dataset(data_cfg=vla_dataset_cfg, action_horizon=action_horizon)
         
         vla_train_dataloader = DataLoader(
             vla_dataset,
