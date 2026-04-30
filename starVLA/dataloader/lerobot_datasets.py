@@ -6,6 +6,7 @@
 
 from pathlib import Path
 from typing import Sequence
+import json
 from omegaconf import OmegaConf
 
 from starVLA.dataloader.gr00t_lerobot.datasets import LeRobotSingleDataset, LeRobotMixtureDataset
@@ -18,6 +19,15 @@ from starVLA.dataloader.gr00t_lerobot.registry import (
 
 def collate_fn(batch):
     return batch
+
+def _ensure_lerobot_modality_meta(dataset_path: Path, data_config) -> None:
+    modality_meta_path = dataset_path / "meta" / "modality.json"
+    if modality_meta_path.exists() or not hasattr(data_config, "get_lerobot_modality_meta"):
+        return
+
+    modality_meta_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(modality_meta_path, "w") as f:
+        json.dump(data_config.get_lerobot_modality_meta(), f, indent=4)
 
 def make_LeRobotSingleDataset(
     data_root_dir: Path | str,
@@ -40,6 +50,7 @@ def make_LeRobotSingleDataset(
     modality_config = data_config.modality_config()
     transforms = data_config.transform()
     dataset_path = data_root_dir / data_name
+    _ensure_lerobot_modality_meta(dataset_path, data_config)
     if robot_type not in ROBOT_TYPE_TO_EMBODIMENT_TAG:
         print(f"Warning: Robot type {robot_type} not found in ROBOT_TYPE_TO_EMBODIMENT_TAG, using {EmbodimentTag.NEW_EMBODIMENT} as default")
         embodiment_tag = EmbodimentTag.NEW_EMBODIMENT
@@ -47,7 +58,13 @@ def make_LeRobotSingleDataset(
         embodiment_tag = ROBOT_TYPE_TO_EMBODIMENT_TAG[robot_type]
     
     video_backend = data_cfg.get("video_backend", "decord") if data_cfg else "torchvision_av"
-    return LeRobotSingleDataset(
+    dataset_cls = LeRobotSingleDataset
+    if robot_type == "teleavatar":
+        from starVLA.dataloader.gr00t_lerobot.teleavatar_dataset import TeleAvatarDataset
+
+        dataset_cls = TeleAvatarDataset
+
+    return dataset_cls(
         dataset_path=dataset_path,
         modality_configs=modality_config,
         transforms=transforms,

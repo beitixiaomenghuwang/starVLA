@@ -2319,9 +2319,12 @@ class LeRobotMixtureDataset(Dataset):
                         break
                     index = random.randint(0, len(self) - 1)
                     
-                raw_data = dataset.get_step_data(trajectory_id, step)    
-                data = dataset.transforms(raw_data)
-                sample = dataset._pack_sample(data)
+                if hasattr(dataset, "get_training_sample"):
+                    sample = dataset.get_training_sample(trajectory_id, step)
+                else:
+                    raw_data = dataset.get_step_data(trajectory_id, step)
+                    data = dataset.transforms(raw_data)
+                    sample = dataset._pack_sample(data)
                 sample["robot_tag"] = dataset.tag
                 return sample
                 

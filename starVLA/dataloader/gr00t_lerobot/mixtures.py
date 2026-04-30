@@ -362,4 +362,8 @@ DATASET_NAMED_MIXTURES = {
     "calvin_task_D_D_v3.0": [
         ("calvin_task_D_D_v3.0", 1.0, "libero_franka"),
     ],
+    # TeleAvatar dual-arm real-robot dataset
+    "teleavatar_pick_marker": [
+        ("pick_marker_put_into_cup_20251113", 1.0, "teleavatar"),
+    ],
 }

@@ -983,6 +983,182 @@ class AgilexData50Config:
 
         return ComposedModalityTransform(transforms=transforms)
 
+###########################################################################################
+
+class TeleAvatarDataConfig(BaseDataConfig):
+    """
+    Data config for the TeleAvatar dual-arm robot (teleavatar).
+
+    Raw sub-keys loaded from parquet (before Rotate6D conversion):
+      left_ee_pose  (7): pos_xyz(3) + quat_xyzw(4)
+      right_ee_pose (7): pos_xyz(3) + quat_xyzw(4)
+      left_gripper_effort  (1)
+      right_gripper_effort (1)
+
+    After TeleAvatarDataset.__getitem__ applies Rotate6D + q99 normalisation:
+      Action  (20-dim): [pos_L(3) | rot6d_L(6) | grip_L(1) | pos_R(3) | rot6d_R(6) | grip_R(1)]
+      State   (18-dim): [pos_L(3) | rot6d_L(6) | pos_R(3)  | rot6d_R(6)]
+
+    Normalisation:
+      EE position:     q99  → [-1, 1]  (using dataset statistics)
+      Rot6D:           none (bounded in [-1, 1] by construction)
+      Gripper effort:  q99  → {≈-1, ≈+1}  (two-valued → effectively binary)
+        left:  q01≈-0.5, q99≈2.5  ⟹  close→-1,  open→+1
+        right: q01≈-2.5, q99≈0.5  ⟹  open→-1,  close→+1
+      NOTE: do NOT use 'binary' (threshold=0.5): right close=0.5 would map
+      to 0, same as right open=-2.5, making the two states indistinguishable.
+
+    The lerobot_modality_meta is defined programmatically via get_lerobot_modality_meta()
+    and written to meta/modality.json at dataset load time — no hand-crafted JSON needed.
+
+    Index mapping in the raw 62-dim action / observation.state arrays:
+      [0:8]   left  joint positions (7) + left  gripper position (1)
+      [8:16]  right joint positions (7) + right gripper position (1)
+      [16:24] left  joint velocities       [24:32] right joint velocities
+      [32:40] left  joint efforts          [40:48] right joint efforts
+        ↳ left_gripper_effort  @ index 39
+        ↳ right_gripper_effort @ index 47
+      [48:55] left  EE position_xyz(3) + orientation_xyzw(4)
+      [55:62] right EE position_xyz(3) + orientation_xyzw(4)
+    """
+
+    video_keys = [
+        "video.left_color",
+        "video.right_color",
+        "video.chest_camera",
+    ]
+    state_keys = [
+        "state.left_ee_pose",
+        "state.right_ee_pose",
+    ]
+    action_keys = [
+        "action.left_ee_pose",
+        "action.left_gripper_effort",
+        "action.right_ee_pose",
+        "action.right_gripper_effort",
+    ]
+    language_keys = ["annotation.human.action.task_description"]
+
+    observation_indices = [0]
+    action_indices = list(range(16))    # predict 16 future steps
+    state_indices = [0]                 # current end-effector state
+
+    @staticmethod
+    def get_lerobot_modality_meta() -> dict:
+        """
+        Return the modality metadata dict that is written to meta/modality.json.
+
+        Keeping this in Python code means the JSON is a generated artifact —
+        edit this function instead of the JSON file.
+        """
+        return {
+            "action": {
+                # left_ee_pose: left_ee_position_x/y/z + left_ee_orientation_x/y/z/w (7 dims)
+                "left_ee_pose": {
+                    "start": 48,
+                    "end": 55,
+                    "original_key": "action",
+                },
+                # left_gripper_effort: 1 dim (index 39 in raw 62-dim array)
+                "left_gripper_effort": {
+                    "start": 39,
+                    "end": 40,
+                    "original_key": "action",
+                },
+                # right_ee_pose: right_ee_position_x/y/z + right_ee_orientation_x/y/z/w (7 dims)
+                "right_ee_pose": {
+                    "start": 55,
+                    "end": 62,
+                    "original_key": "action",
+                },
+                # right_gripper_effort: 1 dim (index 47 in raw 62-dim array)
+                "right_gripper_effort": {
+                    "start": 47,
+                    "end": 48,
+                    "original_key": "action",
+                },
+            },
+            "state": {
+                "left_ee_pose": {
+                    "start": 48,
+                    "end": 55,
+                    "original_key": "observation.state",
+                },
+                "right_ee_pose": {
+                    "start": 55,
+                    "end": 62,
+                    "original_key": "observation.state",
+                },
+            },
+            "video": {
+                "left_color":   {"original_key": "observation.images.left_color"},
+                "right_color":  {"original_key": "observation.images.right_color"},
+                "chest_camera": {"original_key": "observation.images.chest_camera"},
+            },
+            "annotation": {
+                "human.action.task_description": {"original_key": "task_index"},
+            },
+        }
+
+    def modality_config(self) -> dict:
+        video_modality = ModalityConfig(
+            delta_indices=self.observation_indices,
+            modality_keys=self.video_keys,
+        )
+        state_modality = ModalityConfig(
+            delta_indices=self.state_indices,
+            modality_keys=self.state_keys,
+        )
+        action_modality = ModalityConfig(
+            delta_indices=self.action_indices,
+            modality_keys=self.action_keys,
+        )
+        language_modality = ModalityConfig(
+            delta_indices=self.observation_indices,
+            modality_keys=self.language_keys,
+        )
+        return {
+            "video": video_modality,
+            "state": state_modality,
+            "action": action_modality,
+            "language": language_modality,
+        }
+
+    def transform(self) -> ModalityTransform:
+        # NOTE: the current __getitem__ fast-path bypasses ComposedModalityTransform,
+        # so these transforms are not applied during training.
+        # They are kept here for documentation and for future re-enabling.
+        transforms = [
+            # video transforms
+            VideoToTensor(apply_to=self.video_keys),
+            VideoCrop(apply_to=self.video_keys, scale=0.95),
+            VideoResize(apply_to=self.video_keys, height=224, width=224, interpolation="linear"),
+            VideoColorJitter(
+                apply_to=self.video_keys,
+                brightness=0.3,
+                contrast=0.4,
+                saturation=0.5,
+                hue=0.08,
+            ),
+            VideoToNumpy(apply_to=self.video_keys),
+            # action transforms (NOT currently applied — see module-level note above)
+            # Actual normalization is handled by TeleAvatarDataset.__getitem__:
+            #   EE pose      → q99 for position, no-op for rot6d (already bounded)
+            #   Gripper effort → q99 (NOT binary: right close=0.5 ≤ threshold 0.5 → indistinguishable)
+            StateActionToTensor(apply_to=self.action_keys),
+            StateActionTransform(
+                apply_to=self.action_keys,
+                normalization_modes={
+                    "action.left_ee_pose":         "q99",
+                    "action.left_gripper_effort":  "q99",
+                    "action.right_ee_pose":        "q99",
+                    "action.right_gripper_effort": "q99",
+                },
+            ),
+        ]
+        return ComposedModalityTransform(transforms=transforms)
+    
+    
 ROBOT_TYPE_CONFIG_MAP = {
     "libero_franka": Libero4in1DataConfig(),
     "oxe_droid": OxeDroidDataConfig(),
@@ -996,5 +1172,5 @@ ROBOT_TYPE_CONFIG_MAP = {
     "fourier_gr1_arms_waist": FourierGr1ArmsWaistDataConfig(),
     
     "custom_robot_config": SingleFrankaRobotiqDeltaEefDataConfig(),
+    "teleavatar": TeleAvatarDataConfig(),
 }
-
