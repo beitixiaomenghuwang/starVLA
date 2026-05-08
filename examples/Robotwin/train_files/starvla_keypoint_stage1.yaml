@@ -1,0 +1,62 @@
+# Stage-1 keypoint head training config
+# Single GPU, frozen VLM + action_model, train keypoint_head only.
+#
+# Key settings:
+#   action_loss_weight: 0.0   → action loss is computed but not used for gradients
+#   keypoint_loss_weight: 1.0 → only keypoint loss drives optimization
+#   freeze_modules: qwen_vl_interface,action_model  → backbone frozen via trainer
+
+datasets:
+  keypoint_data:
+    data_dir: /home/caslx/Robotics/RoboTwin/data/aloha-agilex_randomized_500
+    per_device_batch_size: 4
+    image_size: [224, 224]
+    cameras:
+      - cam_high
+      - cam_left_wrist
+      - cam_right_wrist
+    # "random": sample from [0, contact_frame) — exposes varied pre-contact observations
+    frame_sample_strategy: random
+    # Set to checkpoint's dataset_statistics.json for action normalization (optional in stage 1)
+    stats_path: null
+
+framework:
+  name: QwenOFTKeypoint
+  qwenvl:
+    # Use local base model if available, otherwise downloads from HuggingFace
+    base_vlm: Qwen/Qwen3-VL-4B-Instruct
+    attn_implementation: flash_attention_2
+  action_model:
+    action_model_type: MLP
+    action_dim: 14
+    action_hidden_dim: 2560
+    action_horizon: 49
+    past_action_window_size: 0
+  # Loss weights — stage 1 trains keypoint head only
+  keypoint_loss_weight: 1.0
+  action_loss_weight: 0.0
+  # Weight of contact BCE loss relative to xyz L1 loss within keypoint_loss
+  contact_loss_weight: 1.0
+
+trainer:
+  # Pretrained VLA checkpoint to initialize VLM + action_model weights
+  # Provide the .pt file from the RoboTwin-trained checkpoint
+  pretrained_checkpoint: ./checkpoints/Qwen3-VL-OFT-RoboTwin2-All/checkpoints/steps_140000_pytorch_model.pt
+  max_train_steps: 10000
+  save_interval: 2000
+  logging_frequency: 50
+  num_warmup_steps: 200
+  gradient_clipping: 1.0
+  learning_rate:
+    keypoint_head: 1.0e-4
+    base: 1.0e-4
+  optimizer:
+    weight_decay: 1.0e-6
+    betas: [0.9, 0.95]
+    eps: 1.0e-8
+
+run_root_dir: ./results/Checkpoints
+run_id: keypoint_stage1_freeze_backbone
+seed: 42
+wandb_project: starVLA_Keypoint
+wandb_entity: axi-the-cat

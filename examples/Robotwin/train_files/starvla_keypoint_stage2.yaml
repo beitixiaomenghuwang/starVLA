@@ -1,0 +1,73 @@
+# Stage-2 full joint training config
+# 8 GPU, all modules trainable, action loss + keypoint loss.
+#
+# The keypoint loss gradient flows through the QwenVL backbone,
+# updating intermediate and earlier layers.
+#
+# Recommended: use Stage-1 full_model_final.pt as pretrained_checkpoint
+# so the keypoint_head is already warm-started.
+
+datasets:
+  keypoint_data:
+    data_dir: /home/caslx/Robotics/RoboTwin/data/aloha-agilex_randomized_500
+    per_device_batch_size: 4
+    image_size: [224, 224]
+    cameras:
+      - cam_high
+      - cam_left_wrist
+      - cam_right_wrist
+    frame_sample_strategy: random
+    # Set to dataset_statistics.json for action normalization (important for stage 2)
+    # stats_path: ./checkpoints/Qwen3-VL-OFT-RoboTwin2-All/dataset_statistics.json
+    stats_path: null
+
+framework:
+  name: QwenOFTKeypoint
+  qwenvl:
+    base_vlm: Qwen/Qwen3-VL-4B-Instruct
+    attn_implementation: flash_attention_2
+  action_model:
+    action_model_type: MLP
+    action_dim: 14
+    action_hidden_dim: 2560
+    action_horizon: 49
+    past_action_window_size: 0
+  # Equal loss weights — both action and keypoint losses drive optimization
+  keypoint_loss_weight: 1.0
+  action_loss_weight: 1.0
+  # Weight of contact BCE loss relative to xyz L1 loss within keypoint_loss
+  contact_loss_weight: 1.0
+
+trainer:
+  # Stage-1 output: full model including warm keypoint_head
+  # Replace with actual Stage-1 output path after running stage 1
+  pretrained_checkpoint: ./results/Checkpoints/keypoint_stage1_freeze_backbone/full_model_final.pt
+  # Alternative: if using original VLA ckpt + separate keypoint_head:
+  # pretrained_checkpoint: ./checkpoints/Qwen3-VL-OFT-RoboTwin2-All/checkpoints/steps_140000_pytorch_model.pt
+  # keypoint_head_checkpoint: ./results/Checkpoints/keypoint_stage1_freeze_backbone/keypoint_head_final.pt
+
+  max_train_steps: 50000
+  save_interval: 5000
+  logging_frequency: 100
+  num_warmup_steps: 1000
+  gradient_clipping: 1.0
+  gradient_accumulation_steps: 1
+  lr_scheduler_type: cosine_with_min_lr
+  scheduler_specific_kwargs:
+    min_lr: 5.0e-7
+  # Per-module learning rates
+  learning_rate:
+    base: 1.0e-5
+    qwen_vl_interface: 1.0e-5
+    action_model: 1.0e-4
+    keypoint_head: 1.0e-4
+  optimizer:
+    weight_decay: 1.0e-8
+    betas: [0.9, 0.95]
+    eps: 1.0e-8
+
+run_root_dir: ./results/Checkpoints
+run_id: keypoint_stage2_full_training
+seed: 42
+wandb_project: starVLA_Keypoint
+wandb_entity: axi-the-cat

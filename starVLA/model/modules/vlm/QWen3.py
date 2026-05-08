@@ -124,8 +124,9 @@ class _QWen3_VL_Interface(nn.Module):
         for imgs, instruction in zip(images, instructions):
             content = [{"type": "image", "image": img} for img in imgs]
 
-            if "CoT_prompt" in self.config.datasets.vla_data:  # If using a grounding prompt to task
-                CoT_prompt = self.config.datasets.vla_data.get("CoT_prompt", "")
+            vla_data_cfg = self.config.datasets.get("vla_data", None)
+            if vla_data_cfg is not None and "CoT_prompt" in vla_data_cfg:  # If using a grounding prompt to task
+                CoT_prompt = vla_data_cfg.get("CoT_prompt", "")
                 prompt = CoT_prompt.replace("{instruction}", instruction)
             else:
                 prompt = instruction
